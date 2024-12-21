@@ -870,7 +870,7 @@ function doPopout(e) {
             const objectivePopoutHTML = $('#objectiveExtensionDrawerContents');
             $('#objectiveExtensionPopout').fadeOut(animation_duration, () => {
                 originalElement.empty();
-                originalElement.html(objectivePopoutHTML.html());
+                originalElement.append(objectivePopoutHTML);
                 $('#objectiveExtensionPopout').remove();
             });
             loadSettings();
