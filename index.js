@@ -486,14 +486,17 @@ function onEditPromptClick() {
     $('#objective-prompt-generate').on('input', () => {
         objectivePrompts.createTask = String($('#objective-prompt-generate').val());
         saveState();
+        setCurrentTask();
     });
     $('#objective-prompt-check').on('input', () => {
         objectivePrompts.checkTaskCompleted = String($('#objective-prompt-check').val());
         saveState();
+        setCurrentTask();
     });
     $('#objective-prompt-extension-prompt').on('input', () => {
         objectivePrompts.currentTask = String($('#objective-prompt-extension-prompt').val());
         saveState();
+        setCurrentTask();
     });
 
     // Handle new
@@ -544,20 +547,22 @@ function saveCustomPrompt() {
 }
 
 async function deleteCustomPrompt() {
-    const confirmation = await Popup.show.confirm('Are you sure you want to delete this prompt?', null);
-
-    if (!confirmation) {
-        return;
-    }
-
     const customPromptName = String($('#objective-custom-prompt-select').find(':selected').val());
 
     if (customPromptName == 'default') {
         toastr.error('Cannot delete default prompt');
         return;
     }
+
+    const confirmation = await Popup.show.confirm('Are you sure you want to delete this prompt?', null);
+
+    if (!confirmation) {
+        return;
+    }
+
     delete extension_settings.objective.customPrompts[customPromptName];
     saveSettingsDebounced();
+    selectedCustomPrompt = 'default';
     populateCustomPrompts(selectedCustomPrompt);
     loadCustomPrompt();
 }
@@ -572,6 +577,7 @@ function loadCustomPrompt() {
     $('#objective-prompt-extension-prompt').val(objectivePrompts.currentTask).trigger('input');
 
     saveState();
+    setCurrentTask();
 }
 
 /**
