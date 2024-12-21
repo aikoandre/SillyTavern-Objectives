@@ -58,3 +58,9 @@
 #objectiveExtensionPopout #objectiveExtensionDrawerContents {
     margin-top: 20px;
 }
+
+.objective_prompt_modal textarea {
+    max-height: 50vh;
+    max-height: 50dvh;
+    resize: vertical;
+}

@@ -1,28 +1,30 @@
-import { chat_metadata, callPopup, saveSettingsDebounced, is_send_press } from '../../../../script.js';
+import { chat_metadata, saveSettingsDebounced, is_send_press, extension_prompt_types } from '../../../../script.js';
 import { getContext, extension_settings, saveMetadataDebounced, renderExtensionTemplateAsync } from '../../../extensions.js';
 import {
     substituteParams,
     eventSource,
     event_types,
     generateQuietPrompt,
-    animation_duration
+    animation_duration,
 } from '../../../../script.js';
-import { registerSlashCommand } from '../../../slash-commands.js';
 import { waitUntilCondition } from '../../../utils.js';
 import { is_group_generating, selected_group } from '../../../group-chats.js';
 import { dragElement } from '../../../../scripts/RossAscends-mods.js';
 import { loadMovingUIState } from '../../../../scripts/power-user.js';
+import { callGenericPopup, Popup, POPUP_TYPE } from '../../../popup.js';
+import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
+import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 
 const MODULE_NAME = 'Objective';
 
 
 let taskTree = null;
-let globalTasks = [];
 let currentChatId = '';
 let currentObjective = null;
 let currentTask = null;
 let checkCounter = 0;
 let lastMessageWasSwipe = false;
+let selectedCustomPrompt = 'default';
 
 
 const defaultPrompts = {
@@ -74,7 +76,7 @@ async function generateTasks() {
     const prompt = substituteParamsPrompts(objectivePrompts.createTask, false);
     console.log('Generating tasks for objective with prompt');
     toastr.info('Generating tasks for objective', 'Please wait...');
-    const taskResponse = await generateQuietPrompt(prompt);
+    const taskResponse = await generateQuietPrompt(prompt, false, false);
 
     // Clear all existing objective tasks when generating
     currentObjective.children = [];
@@ -101,7 +103,8 @@ async function markTaskCompleted() {
 async function checkTaskCompleted() {
     // Make sure there are tasks
     if (jQuery.isEmptyObject(currentTask)) {
-        return;
+        console.warn('No current task to check');
+        return String(false);
     }
 
     try {
@@ -113,24 +116,27 @@ async function checkTaskCompleted() {
         await waitUntilCondition(() => is_send_press === false, 30000, 10);
     } catch {
         console.debug('Failed to wait for group to finish generating');
-        return;
+        return String(false);
     }
 
-    checkCounter = $('#objective-check-frequency').val();
+    checkCounter = Number($('#objective-check-frequency').val());
     toastr.info('Checking for task completion.');
 
     const prompt = substituteParamsPrompts(objectivePrompts.checkTaskCompleted, false);
-    const taskResponse = (await generateQuietPrompt(prompt)).toLowerCase();
+    const taskResponse = (await generateQuietPrompt(prompt, false, false)).toLowerCase();
 
     // Check response if task complete
     if (taskResponse.includes('true')) {
         console.info(`Character determined task '${currentTask.description} is completed.`);
         currentTask.completeTask();
+        return String(true);
     } else if (!(taskResponse.includes('false'))) {
         console.warn(`checkTaskCompleted response did not contain true or false. taskResponse: ${taskResponse}`);
     } else {
         console.debug(`Checked task completion. taskResponse: ${taskResponse}`);
     }
+
+    return String(false);
 }
 
 function getNextIncompleteTaskRecurse(task) {
@@ -184,10 +190,10 @@ function setCurrentTask(taskId = null, skipSave = false) {
         }
 
         // Update the extension prompt
-        context.setExtensionPrompt(MODULE_NAME, extensionPromptText, 1, $('#objective-chat-depth').val());
+        context.setExtensionPrompt(MODULE_NAME, extensionPromptText, extension_prompt_types.IN_CHAT, Number($('#objective-chat-depth').val()));
         console.info(`Current task in context.extensionPrompts.Objective is ${JSON.stringify(context.extensionPrompts.Objective)}`);
     } else {
-        context.setExtensionPrompt(MODULE_NAME, '');
+        context.setExtensionPrompt(MODULE_NAME, '', extension_prompt_types.NONE, 0);
         console.info('No current task');
     }
 
@@ -447,28 +453,29 @@ function onEditPromptClick() {
     let popupText = '';
     popupText += `
     <div class="objective_prompt_modal">
-        <small>Edit prompts used by Objective for this session. You can use {{objective}} or {{task}} plus any other standard template variables. Save template to persist changes.</small>
-        <br>
-        <div>
-            <label for="objective-prompt-generate">Generation Prompt</label>
-            <textarea id="objective-prompt-generate" type="text" class="text_pole textarea_compact" rows="8"></textarea>
-            <label for="objective-prompt-check">Completion Check Prompt</label>
-            <textarea id="objective-prompt-check" type="text" class="text_pole textarea_compact" rows="8"></textarea>
-            <label for="objective-prompt-extension-prompt">Injected Prompt</label>
-            <textarea id="objective-prompt-extension-prompt" type="text" class="text_pole textarea_compact" rows="8"></textarea>
-        </div>
-        <div class="objective_prompt_block">
+        <div class="objective_prompt_block justifyCenter">
             <label for="objective-custom-prompt-select">Custom Prompt Select</label>
-            <select id="objective-custom-prompt-select"><select>
+            <select id="objective-custom-prompt-select" class="text_pole"><select>
         </div>
-        <div class="objective_prompt_block">
+        <div class="objective_prompt_block justifyCenter">
             <input id="objective-custom-prompt-new" class="menu_button" type="submit" value="New Prompt" />
-            <input id="objective-custom-prompt-save" class="menu_button" type="submit" value="Save Prompt" />
+            <input id="objective-custom-prompt-save" class="menu_button" type="submit" value="Update Prompt" />
             <input id="objective-custom-prompt-delete" class="menu_button" type="submit" value="Delete Prompt" />
         </div>
+        <hr class="m-t-1 m-b-1">
+        <small>Edit prompts used by Objective for this session. You can use {{objective}} or {{task}} plus any other standard template variables. Save template to persist changes.</small>
+        <hr class="m-t-1 m-b-1">
+        <div>
+            <label for="objective-prompt-generate">Generation Prompt</label>
+            <textarea id="objective-prompt-generate" type="text" class="text_pole textarea_compact" rows="6"></textarea>
+            <label for="objective-prompt-check">Completion Check Prompt</label>
+            <textarea id="objective-prompt-check" type="text" class="text_pole textarea_compact" rows="6"></textarea>
+            <label for="objective-prompt-extension-prompt">Injected Prompt</label>
+            <textarea id="objective-prompt-extension-prompt" type="text" class="text_pole textarea_compact" rows="6"></textarea>
+        </div>
     </div>`;
-    callPopup(popupText, 'text');
-    populateCustomPrompts();
+    callGenericPopup(popupText, POPUP_TYPE.TEXT, '', { allowVerticalScrolling: true, wide: true });
+    populateCustomPrompts(selectedCustomPrompt);
 
     // Set current values
     $('#objective-prompt-generate').val(objectivePrompts.createTask);
@@ -477,13 +484,16 @@ function onEditPromptClick() {
 
     // Handle value updates
     $('#objective-prompt-generate').on('input', () => {
-        objectivePrompts.createTask = $('#objective-prompt-generate').val();
+        objectivePrompts.createTask = String($('#objective-prompt-generate').val());
+        saveState();
     });
     $('#objective-prompt-check').on('input', () => {
-        objectivePrompts.checkTaskCompleted = $('#objective-prompt-check').val();
+        objectivePrompts.checkTaskCompleted = String($('#objective-prompt-check').val());
+        saveState();
     });
     $('#objective-prompt-extension-prompt').on('input', () => {
-        objectivePrompts.currentTask = $('#objective-prompt-extension-prompt').val();
+        objectivePrompts.currentTask = String($('#objective-prompt-extension-prompt').val());
+        saveState();
     });
 
     // Handle new
@@ -505,9 +515,9 @@ function onEditPromptClick() {
     $('#objective-custom-prompt-select').on('change', loadCustomPrompt);
 }
 async function newCustomPrompt() {
-    const customPromptName = await callPopup('<h3>Custom Prompt name:</h3>', 'input');
+    const customPromptName = await Popup.show.input('Custom Prompt name', null);
 
-    if (customPromptName == '') {
+    if (!customPromptName) {
         toastr.warning('Please set custom prompt name to save.');
         return;
     }
@@ -518,22 +528,29 @@ async function newCustomPrompt() {
     extension_settings.objective.customPrompts[customPromptName] = {};
     Object.assign(extension_settings.objective.customPrompts[customPromptName], objectivePrompts);
     saveSettingsDebounced();
-    populateCustomPrompts();
+    populateCustomPrompts(customPromptName);
 }
 
 function saveCustomPrompt() {
-    const customPromptName = $('#objective-custom-prompt-select').find(':selected').val();
+    const customPromptName = String($('#objective-custom-prompt-select').find(':selected').val());
     if (customPromptName == 'default') {
         toastr.error('Cannot save over default prompt');
         return;
     }
     Object.assign(extension_settings.objective.customPrompts[customPromptName], objectivePrompts);
     saveSettingsDebounced();
-    populateCustomPrompts();
+    populateCustomPrompts(customPromptName);
+    toastr.success('Prompt saved as ' + customPromptName);
 }
 
-function deleteCustomPrompt() {
-    const customPromptName = $('#objective-custom-prompt-select').find(':selected').val();
+async function deleteCustomPrompt() {
+    const confirmation = await Popup.show.confirm('Are you sure you want to delete this prompt?', null);
+
+    if (!confirmation) {
+        return;
+    }
+
+    const customPromptName = String($('#objective-custom-prompt-select').find(':selected').val());
 
     if (customPromptName == 'default') {
         toastr.error('Cannot delete default prompt');
@@ -541,27 +558,38 @@ function deleteCustomPrompt() {
     }
     delete extension_settings.objective.customPrompts[customPromptName];
     saveSettingsDebounced();
-    populateCustomPrompts();
+    populateCustomPrompts(selectedCustomPrompt);
     loadCustomPrompt();
 }
 
 function loadCustomPrompt() {
-    const optionSelected = $('#objective-custom-prompt-select').find(':selected').val();
+    const optionSelected = String($('#objective-custom-prompt-select').find(':selected').val());
     Object.assign(objectivePrompts, extension_settings.objective.customPrompts[optionSelected]);
+    selectedCustomPrompt = optionSelected;
 
-    $('#objective-prompt-generate').val(objectivePrompts.createTask);
-    $('#objective-prompt-check').val(objectivePrompts.checkTaskCompleted);
-    $('#objective-prompt-extension-prompt').val(objectivePrompts.currentTask);
+    $('#objective-prompt-generate').val(objectivePrompts.createTask).trigger('input');
+    $('#objective-prompt-check').val(objectivePrompts.checkTaskCompleted).trigger('input');
+    $('#objective-prompt-extension-prompt').val(objectivePrompts.currentTask).trigger('input');
+
+    saveState();
 }
 
-function populateCustomPrompts() {
+/**
+ * Populate the custom prompt select dropdown with saved prompts.
+ * @param {string} selected Optional selected prompt
+ */
+function populateCustomPrompts(selected) {
+    if (!selected) {
+        selected = selectedCustomPrompt || 'default';
+    }
+
     // Populate saved prompts
     $('#objective-custom-prompt-select').empty();
     for (const customPromptName in extension_settings.objective.customPrompts) {
         const option = document.createElement('option');
         option.innerText = customPromptName;
         option.value = customPromptName;
-        option.selected = customPromptName;
+        option.selected = customPromptName === selected;
         $('#objective-custom-prompt-select').append(option);
     }
 }
@@ -601,6 +629,7 @@ function saveState() {
         chatDepth: $('#objective-chat-depth').val(),
         hideTasks: $('#objective-hide-tasks').prop('checked'),
         prompts: objectivePrompts,
+        selectedCustomPrompt: selectedCustomPrompt,
     };
 
     saveMetadataDebounced();
@@ -618,7 +647,7 @@ function debugObjectiveExtension() {
     }, null, 2));
 }
 
-window.debugObjectiveExtension = debugObjectiveExtension;
+globalThis.debugObjectiveExtension = debugObjectiveExtension;
 
 
 // Populate UI task list
@@ -680,7 +709,7 @@ function onObjectiveTextFocusOut() {
 
 // Update how often we check for task completion
 function onCheckFrequencyInput() {
-    checkCounter = $('#objective-check-frequency').val();
+    checkCounter = Number($('#objective-check-frequency').val());
     $('#objective-counter').text(checkCounter);
     saveState();
 }
@@ -770,6 +799,8 @@ function loadSettings() {
 
     currentObjective = taskTree;
     checkCounter = chat_metadata['objective'].checkFrequency;
+    objectivePrompts = chat_metadata['objective'].prompts;
+    selectedCustomPrompt = chat_metadata['objective'].selectedCustomPrompt || 'default';
 
     // Update UI elements
     $('#objective-counter').text(checkCounter);
@@ -833,7 +864,7 @@ function doPopout(e) {
             const objectivePopoutHTML = $('#objectiveExtensionDrawerContents');
             $('#objectiveExtensionPopout').fadeOut(animation_duration, () => {
                 originalElement.empty();
-                originalElement.html(objectivePopoutHTML);
+                originalElement.html(objectivePopoutHTML.html());
                 $('#objectiveExtensionPopout').remove();
             });
             loadSettings();
@@ -875,7 +906,7 @@ jQuery(async () => {
             lastMessageWasSwipe = false;
             return;
         }
-        if ($('#objective-check-frequency').val() > 0) {
+        if (Number($('#objective-check-frequency').val()) > 0) {
             // Check only at specified interval
             if (checkCounter <= 0) {
                 checkTaskCompleted();
@@ -886,5 +917,10 @@ jQuery(async () => {
         $('#objective-counter').text(checkCounter);
     });
 
-    registerSlashCommand('taskcheck', checkTaskCompleted, [], '– checks if the current task is completed', true, true);
+    SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+        name: 'taskcheck',
+        callback: checkTaskCompleted,
+        helpString: 'Checks if the current task is completed',
+        returns: 'true or false',
+    }));
 });
