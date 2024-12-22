@@ -110,20 +110,21 @@ async function checkTaskCompleted() {
     try {
         // Wait for group to finish generating
         if (selected_group) {
-            await waitUntilCondition(() => is_group_generating === false, 1000, 10);
+            await waitUntilCondition(() => is_group_generating === false, 10000, 100);
         }
         // Another extension might be doing something with the chat, so wait for it to finish
-        await waitUntilCondition(() => is_send_press === false, 30000, 10);
+        await waitUntilCondition(() => is_send_press === false, 30000, 100);
     } catch {
         console.debug('Failed to wait for group to finish generating');
         return String(false);
     }
 
     checkCounter = Number($('#objective-check-frequency').val());
-    toastr.info('Checking for task completion.');
+    const toast = toastr.info('Checking for task completion.');
 
     const prompt = substituteParamsPrompts(objectivePrompts.checkTaskCompleted, false);
     const taskResponse = (await generateQuietPrompt(prompt, false, false)).toLowerCase();
+    toastr.clear(toast);
 
     // Check response if task complete
     if (taskResponse.includes('true')) {
@@ -912,15 +913,21 @@ jQuery(async () => {
             lastMessageWasSwipe = false;
             return;
         }
-        if (Number($('#objective-check-frequency').val()) > 0) {
-            // Check only at specified interval
-            if (checkCounter <= 0) {
-                checkTaskCompleted();
+        let checkForCompletion = false;
+        const noCheckTypes = ['continue', 'quiet', 'impersonate'];
+        const lastType = substituteParams('{{lastGenerationType}}');
+        if (Number($('#objective-check-frequency').val()) > 0 && !noCheckTypes.includes(lastType)) {
+            // Check only at specified interval. Don't let counter go negative
+            if (--checkCounter <= 0) {
+                checkCounter = Math.max(0, checkCounter);
+                checkForCompletion = true;
             }
-            checkCounter -= 1;
         }
-        setCurrentTask();
-        $('#objective-counter').text(checkCounter);
+        const checkTaskPromise = checkForCompletion ? checkTaskCompleted() : Promise.resolve();
+        checkTaskPromise.finally(() => {
+            setCurrentTask();
+            $('#objective-counter').text(checkCounter);
+        });
     });
 
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({
