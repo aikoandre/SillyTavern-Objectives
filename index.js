@@ -726,6 +726,16 @@ function onHideTasksInput() {
     saveState();
 }
 
+function onClearTasksClick() {
+    if (currentObjective) {
+        currentObjective.children = [];
+        updateUiTaskList();
+        setCurrentTask();
+        saveState();
+        toastr.success('All tasks cleared');
+    }
+}
+
 function loadTaskChildrenRecurse(savedTask) {
     let tempTaskTree = new ObjectiveTask({
         id: savedTask.id,
@@ -892,6 +902,7 @@ jQuery(async () => {
     $(document).on('input', '#objective-chat-depth', onChatDepthInput);
     $(document).on('input', '#objective-check-frequency', onCheckFrequencyInput);
     $(document).on('click', '#objective-hide-tasks', onHideTasksInput);
+    $(document).on('click', '#objective-clear', onClearTasksClick);
     $(document).on('click', '#objective_prompt_edit', onEditPromptClick);
     $(document).on('click', '#objective-parent', onParentClick);
     $(document).on('focusout', '#objective-text', onObjectiveTextFocusOut);
