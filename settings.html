@@ -29,13 +29,20 @@
                     </div>
                     <br>
                     <div class="objective_block objective_block_control flex1">
-
                         <label for="objective-check-frequency">Task Check Frequency</label>
                         <input id="objective-check-frequency" class="text_pole widthUnset" type="number" min="0" max="99" />
                         <small>(0 = disabled)</small>
                     </div>
+                    <br>
+                    <div class="objective_block objective_block_control flex1">
+                        <label for="objective-generate-frequency">Auto-Generate Frequency</label>
+                        <input id="objective-generate-frequency" class="text_pole widthUnset" type="number" min="0" max="99" />
+                        <small>(0 = disabled)</small>
+                    </div>
                 </div>
                 <span> Messages until next AI task completion check <span id="objective-counter">0</span></span>
+                <br>
+                <span> Messages until next AI tasks regeneration <span id="generate-counter">0</span></span>
                 <div class="objective_block flex-container">
                     <input id="objective_prompt_edit" class="menu_button" type="submit" value="Edit Prompts" />
                 </div>

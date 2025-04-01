@@ -23,6 +23,7 @@ let currentChatId = '';
 let currentObjective = null;
 let currentTask = null;
 let checkCounter = 0;
+let generateCounter = 0;
 let lastMessageWasSwipe = false;
 let selectedCustomPrompt = 'default';
 
@@ -119,7 +120,6 @@ async function checkTaskCompleted() {
         return String(false);
     }
 
-    checkCounter = Number($('#objective-check-frequency').val());
     const toast = toastr.info('Checking for task completion.');
 
     const prompt = substituteParamsPrompts(objectivePrompts.checkTaskCompleted, false);
@@ -633,6 +633,7 @@ function saveState() {
         currentObjectiveId: currentObjective.id,
         taskTree: taskTree.toSaveStateRecurse(),
         checkFrequency: $('#objective-check-frequency').val(),
+        generateFrequency: $('#objective-generate-frequency').val(),
         chatDepth: $('#objective-chat-depth').val(),
         hideTasks: $('#objective-hide-tasks').prop('checked'),
         prompts: objectivePrompts,
@@ -718,6 +719,12 @@ function onObjectiveTextFocusOut() {
 function onCheckFrequencyInput() {
     checkCounter = Number($('#objective-check-frequency').val());
     $('#objective-counter').text(checkCounter);
+    saveState();
+}
+
+function onGenerateFrequencyInput() {
+    generateCounter = Number($('#objective-generate-frequency').val());
+    $('#generate-counter').text(generateCounter);
     saveState();
 }
 
@@ -816,15 +823,18 @@ function loadSettings() {
 
     currentObjective = taskTree;
     checkCounter = chat_metadata['objective'].checkFrequency;
+    generateCounter = Number(chat_metadata['objective'].generateFrequency) || 0;
     objectivePrompts = chat_metadata['objective'].prompts;
     selectedCustomPrompt = chat_metadata['objective'].selectedCustomPrompt || 'default';
 
     // Update UI elements
     $('#objective-counter').text(checkCounter);
+    $('#generate-counter').text(generateCounter);
     $('#objective-text').text(taskTree.description);
     updateUiTaskList();
     $('#objective-chat-depth').val(chat_metadata['objective'].chatDepth);
     $('#objective-check-frequency').val(chat_metadata['objective'].checkFrequency);
+    $('#objective-generate-frequency').val(chat_metadata['objective'].generateFrequency || 0);
     $('#objective-hide-tasks').prop('checked', chat_metadata['objective'].hideTasks);
     $('#objective-tasks').prop('hidden', $('#objective-hide-tasks').prop('checked'));
     setCurrentTask(null, true);
@@ -901,6 +911,7 @@ jQuery(async () => {
     $(document).on('click', '#objective-generate', onGenerateObjectiveClick);
     $(document).on('input', '#objective-chat-depth', onChatDepthInput);
     $(document).on('input', '#objective-check-frequency', onCheckFrequencyInput);
+    $(document).on('input', '#objective-generate-frequency', onGenerateFrequencyInput);
     $(document).on('click', '#objective-hide-tasks', onHideTasksInput);
     $(document).on('click', '#objective-clear', onClearTasksClick);
     $(document).on('click', '#objective_prompt_edit', onEditPromptClick);
@@ -928,16 +939,27 @@ jQuery(async () => {
         const noCheckTypes = ['continue', 'quiet', 'impersonate'];
         const lastType = substituteParams('{{lastGenerationType}}');
         if (Number($('#objective-check-frequency').val()) > 0 && !noCheckTypes.includes(lastType)) {
-            // Check only at specified interval. Don't let counter go negative
             if (--checkCounter <= 0) {
-                checkCounter = Math.max(0, checkCounter);
                 checkForCompletion = true;
+                checkCounter = Number($('#objective-check-frequency').val());
             }
         }
+
+        let generateNewTasks = false;
+        if (Number($('#objective-generate-frequency').val()) > 0 && !noCheckTypes.includes(lastType)) {
+            if (--generateCounter <= 0) {
+                generateNewTasks = true;
+                generateCounter = Number($('#objective-generate-frequency').val());
+            }
+        }
+
         const checkTaskPromise = checkForCompletion ? checkTaskCompleted() : Promise.resolve();
-        checkTaskPromise.finally(() => {
+        const generatePromise = generateNewTasks ? generateTasks() : Promise.resolve();
+
+        Promise.all([checkTaskPromise, generatePromise]).finally(() => {
             setCurrentTask();
             $('#objective-counter').text(checkCounter);
+            $('#generate-counter').text(generateCounter);
         });
     });
 

@@ -3,6 +3,11 @@
     color: orange;
 }
 
+#generate-counter {
+    font-weight: 600;
+    color: orange;
+}
+
 .objective_block {
     display: flex;
     align-items: center;
