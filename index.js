@@ -1,4 +1,4 @@
-import { chat_metadata, saveSettingsDebounced, is_send_press, extension_prompt_types } from '../../../../script.js';
+import { chat_metadata, saveSettingsDebounced, is_send_press, extension_prompt_types, animation_easing } from '../../../../script.js';
 import { getContext, extension_settings, saveMetadataDebounced, renderExtensionTemplateAsync } from '../../../extensions.js';
 import {
     substituteParams,
@@ -872,17 +872,18 @@ function doPopout(e) {
     </div>`;
         const newElement = $(template);
         newElement.attr('id', 'objectiveExtensionPopout')
+            .css({ display: 'flex', opacity: 0 })
             .removeClass('zoomed_avatar')
             .addClass('draggable')
             .empty();
         originalElement.html('<div class="flex-container alignitemscenter justifyCenter wide100p"><small>Currently popped out</small></div>');
         newElement.append(controlBarHtml).append(originalHTMLClone);
         $('#movingDivs').append(newElement);
+        newElement.transition({ opacity: 1, duration: animation_duration, easing: animation_easing });
         $('#objectiveExtensionDrawerContents').addClass('scrollY');
         loadSettings();
         loadMovingUIState();
 
-        $('#objectiveExtensionPopout').css('display', 'flex').fadeIn(animation_duration);
         dragElement(newElement);
 
         //setup listener for close button to restore extensions menu
