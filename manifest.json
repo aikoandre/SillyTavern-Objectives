@@ -1,12 +1,12 @@
 {
-    "display_name": "Objective",
+    "display_name": "Objective (Forked)",
     "loading_order": 5,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
-    "author": "Ouoertheo",
-    "version": "1.0.0",
-    "homePage": "https://github.com/SillyTavern/Extension-Objective",
+    "author": "aikoandre (forked from Ouoertheo)",
+    "version": "1.1.0",
+    "homePage": "https://github.com/aikoandre/SillyTavern-Objectives",
     "auto_update": true
 }
