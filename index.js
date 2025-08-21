@@ -173,9 +173,12 @@ function setCurrentTask(taskId = null, skipSave = false) {
         currentTask = getTaskById(taskId);
     }
 
-    // Don't just check for a current task, check if it has data
+    // Check if extension is enabled before injecting prompts
+    const isEnabled = $('#objective-enabled').prop('checked');
+    
+    // Don't just check for a current task, check if it has data and extension is enabled
     const description = currentTask.description || null;
-    if (description) {
+    if (description && isEnabled) {
         const extensionPromptText = substituteParamsPrompts(objectivePrompts.currentTask, true);
 
         // Remove highlights
@@ -195,7 +198,11 @@ function setCurrentTask(taskId = null, skipSave = false) {
         console.info(`Current task in context.extensionPrompts.Objective is ${JSON.stringify(context.extensionPrompts.Objective)}`);
     } else {
         context.setExtensionPrompt(MODULE_NAME, '', extension_prompt_types.NONE, 0);
-        console.info('No current task');
+        if (!isEnabled) {
+            console.info('Objective extension disabled - no prompt injection');
+        } else {
+            console.info('No current task');
+        }
     }
 
     // Save state if not skipping
@@ -612,6 +619,7 @@ const defaultSettings = {
     chatDepth: 2,
     checkFrequency: 3,
     hideTasks: false,
+    enabled: true,
     prompts: defaultPrompts,
 };
 
@@ -636,6 +644,7 @@ function saveState() {
         generateFrequency: $('#objective-generate-frequency').val(),
         chatDepth: $('#objective-chat-depth').val(),
         hideTasks: $('#objective-hide-tasks').prop('checked'),
+        enabled: $('#objective-enabled').prop('checked'),
         prompts: objectivePrompts,
         selectedCustomPrompt: selectedCustomPrompt,
     };
@@ -731,6 +740,11 @@ function onGenerateFrequencyInput() {
 function onHideTasksInput() {
     $('#objective-tasks').prop('hidden', $('#objective-hide-tasks').prop('checked'));
     saveState();
+}
+
+function onEnabledInput() {
+    saveState();
+    setCurrentTask(); // Ensure extension prompt is updated based on enabled state
 }
 
 function onClearTasksClick() {
@@ -836,6 +850,7 @@ function loadSettings() {
     $('#objective-check-frequency').val(chat_metadata['objective'].checkFrequency);
     $('#objective-generate-frequency').val(chat_metadata['objective'].generateFrequency || 0);
     $('#objective-hide-tasks').prop('checked', chat_metadata['objective'].hideTasks);
+    $('#objective-enabled').prop('checked', chat_metadata['objective'].enabled !== false); // Default to true if not set
     $('#objective-tasks').prop('hidden', $('#objective-hide-tasks').prop('checked'));
     setCurrentTask(null, true);
 }
@@ -914,6 +929,7 @@ jQuery(async () => {
     $(document).on('input', '#objective-check-frequency', onCheckFrequencyInput);
     $(document).on('input', '#objective-generate-frequency', onGenerateFrequencyInput);
     $(document).on('click', '#objective-hide-tasks', onHideTasksInput);
+    $(document).on('click', '#objective-enabled', onEnabledInput);
     $(document).on('click', '#objective-clear', onClearTasksClick);
     $(document).on('click', '#objective_prompt_edit', onEditPromptClick);
     $(document).on('click', '#objective-parent', onParentClick);
